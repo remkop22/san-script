@@ -38,6 +38,12 @@ impl Builtins {
     }
 }
 
+impl Default for Builtins {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn print(interp: &mut Interpreter, args: &[Value]) -> Value {
     for (i, arg) in args.iter().enumerate() {
         let display = get_native_prop!(interp, arg, display);

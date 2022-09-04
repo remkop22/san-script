@@ -1,4 +1,3 @@
-
 use crate::{
     get_native_prop,
     ptr::{Ptr, PtrMut},
@@ -19,6 +18,12 @@ pub struct BuiltinTypes {
     pub object: Ptr<Type>,
     pub null: Ptr<Type>,
     pub ty: Ptr<Type>,
+}
+
+impl Default for BuiltinTypes {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BuiltinTypes {
