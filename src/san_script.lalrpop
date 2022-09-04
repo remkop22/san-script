@@ -1,0 +1,103 @@
+use crate::ast::*;
+
+grammar(filename: &str);
+
+pub Module: Module = {
+    <body:Statement*> => Module { body, name: filename.to_string() }
+}
+
+Statement: Statement = {
+    "let" <ident:Identifier> <assign:("=" <Expression>)?> ";" => Statement::Declaration { ident, assign },
+    "^" <Expression> ";" => Statement::Return(<>),
+    <Expression> ";" => Statement::Expression(<>),
+    <target:AssignmentTarget> "=" <source:Expression> ";" => Statement::Assignment { target, source },
+    If
+}
+
+If: Statement = {
+    "if" <cond:Expression> "{" <body:Statement*> "}" <else_body:Else?> => 
+        Statement::If { cond, body, else_body: else_body.unwrap_or_default() }
+}
+
+Else: Vec<Statement> = {
+    "else" "{" <Statement*> "}",
+    "else" <If> => vec![<>]
+}
+
+AssignmentTarget: AssignmentTarget = {
+    Identifier => AssignmentTarget::Identifier(<>),
+    <TermExpr> "." <Identifier> => AssignmentTarget::Property(<>),
+    <TermExpr> "[" <Expression> "]" => AssignmentTarget::Subscript(<>),
+}
+
+Expression: Expression = {
+    <params:FunctionParams> <body:FunctionBody> => Expression::Function { params, body },
+    EqExpr
+}
+
+EqExpr: Expression = {
+    <lhs:EqExpr> "==" <rhs:OrderExpr> => Expression::Operation { lhs: Box::new(lhs), op: Operator::Equals, rhs: Box::new(rhs) },
+    <lhs:EqExpr> "=!" <rhs:OrderExpr> => Expression::Operation { lhs: Box::new(lhs), op: Operator::NotEquals, rhs: Box::new(rhs) },
+    OrderExpr,
+}
+
+OrderExpr: Expression = {
+    <lhs:OrderExpr> ">" <rhs:SumExpr> => Expression::Operation { lhs: Box::new(lhs), op: Operator::GreaterThan, rhs: Box::new(rhs) },
+    <lhs:OrderExpr> "<" <rhs:SumExpr> => Expression::Operation { lhs: Box::new(lhs), op: Operator::LessThan, rhs: Box::new(rhs) },
+    <lhs:OrderExpr> "<=" <rhs:SumExpr> => Expression::Operation { lhs: Box::new(lhs), op: Operator::LessThanOrEqual, rhs: Box::new(rhs) },
+    <lhs:OrderExpr> ">=" <rhs:SumExpr> => Expression::Operation { lhs: Box::new(lhs), op: Operator::GreaterThanOrEqual, rhs: Box::new(rhs) },
+    SumExpr,
+}
+
+SumExpr: Expression = {
+    <lhs:SumExpr> "+" <rhs:FactorExpr> => Expression::Operation { lhs: Box::new(lhs), op: Operator::Add, rhs: Box::new(rhs) },
+    <lhs:SumExpr> "-" <rhs:FactorExpr> => Expression::Operation { lhs: Box::new(lhs), op: Operator::Subtract, rhs: Box::new(rhs) },
+    FactorExpr,
+}
+
+FactorExpr: Expression = {
+    <lhs:FactorExpr> "*" <rhs:TermExpr> => Expression::Operation { lhs: Box::new(lhs), op: Operator::Multiply, rhs: Box::new(rhs) },
+    <lhs:FactorExpr> "/" <rhs:TermExpr> => Expression::Operation { lhs: Box::new(lhs), op: Operator::Divide, rhs: Box::new(rhs) },
+    TermExpr,
+}
+
+
+TermExpr: Expression = {
+    FunctionCall,
+    Integer => Expression::Integer(<>),
+    String => Expression::String(<>),
+    Float => Expression::Float(<>),
+    Identifier => Expression::Identifier(<>),
+    <lhs:TermExpr> "[" <rhs:Expression> "]" => Expression::Subscript(Box::new(lhs), Box::new(rhs)),
+    <lhs:TermExpr> "." <rhs:Identifier> => Expression::Property(Box::new(lhs), rhs),
+    "[" <Comma<Expression>> "]" => Expression::List(<>),
+    "(" <Expression> ")"
+}
+
+FunctionCall: Expression = {
+    <target:TermExpr> "(" <args:Comma<Expression>> ")" => Expression::FunctionCall { target: Box::new(target), args }
+}
+
+FunctionParams: Vec<String> = {
+    "fn" "(" <Comma<Identifier>> ")"
+}
+
+FunctionBody: Vec<Statement> = {
+    "{" <Statement*> "}",
+    Expression => vec![Statement::Return(<>)]
+}
+
+Integer: i64 = r"[0-9]+" => <>.parse().unwrap();
+Float: f64 = r"-?(([1-9][0-9]*)|0)\.[0-9]+" => <>.parse().unwrap();
+Identifier: String = r"[a-zA-Z]([a-zA-Z0-9]|_)*" => <>.to_string();
+String: String = r#""[^"]*""# => (<>[1..<>.len() - 1]).to_string();
+
+Comma<T>: Vec<T> = {
+    <mut v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
+};
